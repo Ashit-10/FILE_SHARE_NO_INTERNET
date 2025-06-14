@@ -1,60 +1,68 @@
-/* ---------- show chosen filename ---------- */
-const fileInput  = document.getElementById('fileInput');
+let deviceName = localStorage.getItem("deviceName");
+if (!deviceName) {
+  deviceName = prompt("Enter a name for this device:");
+  if (deviceName) localStorage.setItem("deviceName", deviceName);
+}
+document.getElementById("devicename-info").textContent = "📱 Device: " + deviceName;
+
+const fileInput = document.getElementById('fileInput');
 const fileNameEl = document.getElementById('fileName');
+const progressBar = document.getElementById('progressBar');
+const progressContainer = document.getElementById('progressContainer');
+
 fileInput.addEventListener('change', () => {
-  fileNameEl.textContent = fileInput.files[0]?.name || 'No file selected';
+  const files = [...fileInput.files].map(f => f.name).join(', ');
+  fileNameEl.textContent = files || 'No file selected';
 });
 
-/* ---------- upload with progress & speed ---------- */
-document.getElementById('uploadForm').addEventListener('submit', e => {
+document.getElementById('uploadForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const file = fileInput.files[0];
-  if (!file) return;
-
-  const bar   = document.getElementById('uploadBar');
-  const speed = document.getElementById('uploadSpeed');
-  bar.style.display = 'block';
-  speed.textContent = '';
-  let t0 = performance.now();
-
-  const xhr = new XMLHttpRequest();
-  xhr.upload.onprogress = ev => {
-    if (ev.lengthComputable) {
-      bar.value = (ev.loaded / ev.total) * 100;
-      const kbps = (ev.loaded / 1024 / ((performance.now() - t0) / 1000)).toFixed(1);
-      speed.textContent = `${kbps} KB/s`;
-    }
-  };
-  xhr.onload = () => location.reload();
-  xhr.open('POST', '/');
-  const fd = new FormData();
-  fd.append('file', file);
-  xhr.send(fd);
+  const files = fileInput.files;
+  for (let file of files) {
+    const fd = new FormData();
+    fd.append('file', file);
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/upload", true);
+    xhr.upload.onprogress = e => {
+      if (e.lengthComputable) {
+        const percent = (e.loaded / e.total) * 100;
+        progressContainer.style.display = 'block';
+        progressBar.style.width = percent + '%';
+      }
+    };
+    xhr.onload = () => {
+      progressContainer.style.display = 'none';
+      progressBar.style.width = '0%';
+    };
+    xhr.send(fd);
+  }
 });
 
-/* ---------- download with progress & speed ---------- */
+function refreshFileList() {
+  fetch('/list_files')
+    .then(r => r.json())
+    .then(files => {
+      const ul = document.getElementById('fileList');
+      ul.innerHTML = '';
+      files.forEach(f => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <span>${f}</span>
+          <button onclick="downloadFile('${f}')">Download</button>
+          <button onclick="deleteFile('${f}')">Delete</button>
+        `;
+        ul.appendChild(li);
+      });
+    });
+}
+
 function downloadFile(filename){
-  const li      = [...document.querySelectorAll('#fileList li')]
-                  .find(el => el.querySelector('.file-name').textContent === filename);
-  const bar     = li.querySelector('progress');
-  const speedEl = li.querySelector('.speed');
-
-  bar.style.display = 'block';
-  speedEl.textContent = '';
-  let t0 = performance.now();
-
   const xhr = new XMLHttpRequest();
+  xhr.open("GET", "/files/" + encodeURIComponent(filename), true);
   xhr.responseType = 'blob';
-  xhr.onprogress = ev => {
-    if (ev.lengthComputable) {
-      bar.value = (ev.loaded / ev.total) * 100;
-      const kbps = (ev.loaded / 1024 / ((performance.now() - t0) / 1000)).toFixed(1);
-      speedEl.textContent = `${kbps} KB/s`;
-    }
-  };
+  xhr.setRequestHeader("X-Device-Name", localStorage.getItem("deviceName") || "Unknown");
+
   xhr.onload = () => {
-    bar.style.display = 'none';
-    speedEl.textContent = '';
     const blob = xhr.response;
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -62,19 +70,17 @@ function downloadFile(filename){
     a.click();
     URL.revokeObjectURL(a.href);
   };
-  xhr.open('GET', `/files/${filename}`);
   xhr.send();
 }
 
-/* ---------- delete ---------- */
 function deleteFile(filename){
-  if (!confirm(`Delete ${filename}?`)) return;
   fetch(`/delete/${filename}`, {method:'POST'})
-    .then(r => r.ok ? location.reload() : alert('Delete failed'));
+    .then(r => r.ok ? null : alert("Delete failed"));
 }
 
-/* ---------- live auto‑refresh via Server‑Sent Events ---------- */
-if (window.EventSource){
-  const es = new EventSource('/events');
-  es.onmessage = e => (e.data === 'refresh') && location.reload();
-}
+refreshFileList();
+
+const evtSource = new EventSource("/stream");
+evtSource.onmessage = function() {
+  refreshFileList();
+};

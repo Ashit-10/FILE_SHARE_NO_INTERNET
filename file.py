@@ -1,66 +1,76 @@
-from flask import Flask, request, render_template, send_from_directory, abort, Response
-import os, queue
-from werkzeug.utils import secure_filename
+from flask import Flask, render_template, request, send_from_directory, send_file, jsonify
+import os
+import io
+import queue
+import zipfile
 
-app = Flask(__name__, static_folder='static')
+app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 clients = []
 
-def file_path(fname):
-    return os.path.join(UPLOAD_FOLDER, secure_filename(fname))
-
-# ---------- main page & upload ----------
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/')
 def index():
-    if request.method == 'POST':
-        f = request.files.get('file')
-        if f and f.filename:
-            f.save(file_path(f.filename))
-            # notify all browsers to refresh
-            for q in clients:
-                q.put("refresh")
-    files = sorted(os.listdir(UPLOAD_FOLDER))
-    return render_template('index.html', files=files)
+    return render_template('index.html')
 
-# ---------- download ----------
+@app.route('/upload', methods=['POST'])
+def upload():
+    file = request.files['file']
+    if file:
+        file.save(os.path.join(UPLOAD_FOLDER, file.filename))
+        for q in clients:
+            q.put("refresh")
+    return ('', 204)
+
 @app.route('/files/<filename>')
 def download(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename,
-                               as_attachment=True, download_name=filename)
+    device_name = request.headers.get("X-Device-Name", "Unknown")
+    log_line = f"[DOWNLOAD] {filename} by {device_name}"
+    print(log_line)
+    with open("downloads.log", "a") as f:
+        f.write(log_line + "\n")
+    return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True, download_name=filename)
 
-# ---------- delete ----------
 @app.route('/delete/<filename>', methods=['POST'])
 def delete(filename):
     try:
-        os.remove(file_path(filename))
+        os.remove(os.path.join(UPLOAD_FOLDER, filename))
+        for q in clients:
+            q.put("refresh")
         return ('', 204)
-    except FileNotFoundError:
-        abort(404)
+    except:
+        return ('File not found', 404)
 
-# ---------- server‑sent events ----------
-@app.route('/events')
-def sse():
-    def event_stream():
-        q = queue.Queue()
-        clients.append(q)
+@app.route('/stream')
+def stream():
+    def event_stream(q):
         try:
             while True:
-                data = q.get()
-                yield f'data: {data}\n\n'
+                yield f"data: {q.get()}
+
+"
         except GeneratorExit:
-            clients.remove(q)
-    return Response(event_stream(), mimetype='text/event-stream')
+            pass
 
-# ---------- PWA helpers ----------
-@app.route('/manifest.json')
-def manifest():
-    return app.send_static_file('manifest.json')
+    q = queue.Queue()
+    clients.append(q)
+    return app.response_class(event_stream(q), mimetype='text/event-stream')
 
-@app.route('/favicon.ico')
-def favicon():
-    return app.send_static_file('icon.png')
+@app.route('/list_files')
+def list_files():
+    files = os.listdir(UPLOAD_FOLDER)
+    return jsonify(files)
+
+@app.route('/download_all')
+def download_all():
+    memory_file = io.BytesIO()
+    with zipfile.ZipFile(memory_file, 'w') as zf:
+        for filename in os.listdir(UPLOAD_FOLDER):
+            filepath = os.path.join(UPLOAD_FOLDER, filename)
+            zf.write(filepath, arcname=filename)
+    memory_file.seek(0)
+    return send_file(memory_file, download_name="all_files.zip", as_attachment=True)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, threaded=True)
+    app.run(host='0.0.0.0', port=5000)

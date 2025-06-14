@@ -3,84 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>📤 File Uploader</title>
-
-  <link rel="manifest" href="/manifest.json">
-  <link rel="icon" href="/static/icon.png">
-  <script src="/static/main.js" defer></script>
-
-  <style>
-    html,body{margin:0;padding:0;overflow-x:hidden;}
-    body{
-      font-family:system-ui,Arial,sans-serif;
-      background:#f6f6f6;
-      padding:16px;
-      max-width:480px;
-      margin:auto;
-      box-sizing:border-box;
-    }
-    h1{font-size:1.7rem;text-align:center;margin-top:0}
-
-    /* ---------- upload form ---------- */
-    form{display:flex;flex-direction:column;gap:12px}
-    input[type=file]{display:none}
-    .file-label{
-      background:#2196f3;color:#fff;padding:10px 16px;
-      border-radius:6px;font-size:1rem;text-align:center;
-      cursor:pointer;user-select:none
-    }
-    #fileName{font-size:0.9rem;color:#444}
-
-    button{
-      padding:10px;font-size:1.05rem;border:none;border-radius:6px;
-      cursor:pointer
-    }
-    #uploadBtn{background:#4caf50;color:#fff}
-    progress{width:100%;height:18px;display:none}
-    .speed{font-size:0.8rem;color:#555}
-
-    /* ---------- file list ---------- */
-    ul{list-style:none;padding:0;margin-top:18px}
-    li{
-      background:#fff;border-radius:6px;margin:10px 0;padding:10px;
-      display:flex;flex-direction:column;gap:6px
-    }
-    .file-row{
-      display:flex;align-items:center;justify-content:space-between;gap:8px
-    }
-    .file-name{flex:1;word-break:break-all;font-size:1.05rem}
-    .dl-btn{background:#2196f3;color:#fff}
-    .delete-btn{background:#e53935;color:#fff}
-  </style>
+  <title>📂 File Share</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <h1>📤 File Uploader</h1>
-
-  <!-- ---------- Upload form ---------- -->
-  <form id="uploadForm">
-    <label for="fileInput" class="file-label">📁 Choose File</label>
-    <input type="file" id="fileInput" name="file" required>
-    <span id="fileName">No file selected</span>
-
-    <button id="uploadBtn" type="submit">Upload</button>
-    <progress id="uploadBar" value="0" max="100"></progress>
-    <span id="uploadSpeed" class="speed"></span>
-  </form>
-
-  <!-- ---------- Existing files ---------- -->
-  <h2>📁 Files</h2>
-  <ul id="fileList">
-    {% for f in files %}
-    <li>
-      <div class="file-row">
-        <span class="file-name">{{f}}</span>
-        <button class="dl-btn" onclick="downloadFile('{{f}}')">Download</button>
-        <button class="delete-btn" onclick="deleteFile('{{f}}')">Delete</button>
-      </div>
-      <progress id="bar-{{loop.index}}" value="0" max="100"></progress>
-      <span id="speed-{{f}}" class="speed"></span>
-    </li>
-    {% endfor %}
-  </ul>
+  <div class="container">
+    <h1>📤 Local File Transfer</h1>
+    <p id="devicename-info"></p>
+    <form id="uploadForm">
+      <input type="file" id="fileInput" name="file" multiple required>
+      <label for="fileInput" id="fileName">No file selected</label>
+      <button type="submit">Upload</button>
+    </form>
+    <div class="progress" id="progressContainer" style="display:none;">
+      <div id="progressBar"></div>
+    </div>
+    <h2>📁 Files</h2>
+    <button onclick="window.location.href='/download_all'" class="dl-btn" style="margin-bottom:10px;width:100%">⬇️ Download All as ZIP</button>
+    <ul id="fileList"></ul>
+  </div>
+  <script src="/static/main.js"></script>
 </body>
 </html>
