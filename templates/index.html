@@ -1,64 +1,73 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.2">
+  <!-- Responsive, no forced zoom, no sideways scroll -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>📤 File Uploader</title>
+
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/static/icon.png">
+  <script src="/static/main.js" defer></script>
+
   <style>
-    body {
-      font-family: sans-serif;
-      padding: 20px;
-      max-width: 600px;
-      margin: auto;
-      background: #f8f8f8;
+    /* Prevent any accidental sideways scroll */
+    html,body{margin:0;padding:0;overflow-x:hidden;}
+
+    body{
+      font-family:system-ui,Arial,sans-serif;
+      background:#f6f6f6;
+      padding:16px;
+      max-width:480px;          /* comfy on phone, centred on desktop */
+      margin:auto;
+      box-sizing:border-box;
     }
-    h1 {
-      font-size: 2rem;
-      text-align: center;
+    h1{font-size:1.7rem;text-align:center;margin-top:0}
+    form{display:flex;flex-direction:column;gap:12px}
+    input[type=file]{font-size:1.05rem}
+    button{
+      font-size:1.05rem;
+      padding:10px;
+      border:none;border-radius:6px;
+      background:#4caf50;color:#fff
     }
-    input[type="file"] {
-      font-size: 1.2rem;
-      margin: 20px 0;
+    progress{width:100%;height:18px;display:none}
+    ul{list-style:none;padding:0;margin-top:16px}
+    li{
+      background:#fff;border-radius:6px;margin:8px 0;padding:10px;
+      display:flex;flex-direction:column;gap:6px
     }
-    input[type="submit"] {
-      padding: 10px 20px;
-      font-size: 1.2rem;
-      background: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 5px;
+    .file-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+    a{flex:1;text-decoration:none;color:#006ad8;word-break:break-all}
+    .delete-btn{
+      background:#e53935;color:#fff;border:none;border-radius:4px;
+      padding:4px 8px;font-size:0.9rem;cursor:pointer
     }
-    ul {
-      list-style: none;
-      padding: 0;
-    }
-    li {
-      padding: 10px;
-      font-size: 1.2rem;
-      background: #fff;
-      margin-top: 10px;
-      border-radius: 5px;
-    }
-    a {
-      text-decoration: none;
-      color: #2196F3;
-    }
+    .speed{font-size:0.8rem;color:#555}
   </style>
 </head>
 <body>
-  <h1>📤 Upload Files</h1>
-  <form method="post" enctype="multipart/form-data">
-    <input type="file" name="file" required><br>
-    <input type="submit" value="Upload">
+  <h1>📤 File Uploader</h1>
+
+  <!-- Upload form -->
+  <form id="uploadForm">
+      <input type="file" name="file" id="fileInput" required>
+      <button type="submit">Upload</button>
+      <progress id="uploadBar" value="0" max="100"></progress>
+      <span id="uploadSpeed" class="speed"></span>
   </form>
 
-  <h2>📁 Files:</h2>
-  <ul>
-    {% for file in files %}
+  <!-- Existing files -->
+  <h2>📁 Files</h2>
+  <ul id="fileList">
+    {% for f in files %}
     <li>
-      <a href="/files/{{ file }}" download>{{ file }}</a>
+      <div class="file-row">
+        <a href="/files/{{f}}" onclick="downloadFile(event,'{{f}}')">{{f}}</a>
+        <button class="delete-btn" onclick="deleteFile(event,'{{f}}')">Delete</button>
+      </div>
+      <progress id="bar-{{loop.index}}" value="0" max="100"></progress>
+      <span id="speed-{{f}}" class="speed"></span>
     </li>
     {% endfor %}
   </ul>
