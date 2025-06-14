@@ -1,8 +1,6 @@
-from flask import Flask, render_template, request, send_from_directory, send_file, jsonify
-import os
-import io
-import queue
-import zipfile
+from flask import Flask, request, render_template, send_from_directory, jsonify, Response
+from werkzeug.utils import secure_filename
+import os, time, zipfile, queue
 
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
@@ -16,61 +14,53 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload():
-    file = request.files['file']
-    if file:
-        file.save(os.path.join(UPLOAD_FOLDER, file.filename))
-        for q in clients:
-            q.put("refresh")
-    return ('', 204)
+    f = request.files['file']
+    filename = secure_filename(f.filename)
+    f.save(os.path.join(UPLOAD_FOLDER, filename))
+    broadcast("refresh")
+    return 'OK'
 
 @app.route('/files/<filename>')
-def download(filename):
-    device_name = request.headers.get("X-Device-Name", "Unknown")
-    log_line = f"[DOWNLOAD] {filename} by {device_name}"
-    print(log_line)
-    with open("downloads.log", "a") as f:
-        f.write(log_line + "\n")
-    return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True, download_name=filename)
+def serve_file(filename):
+    device = request.headers.get("X-Device-Name", "Unknown")
+    broadcast(f"popup::{device} downloaded {filename}")
+    return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
+
+@app.route('/list_files')
+def list_files():
+    return jsonify(os.listdir(UPLOAD_FOLDER))
 
 @app.route('/delete/<filename>', methods=['POST'])
-def delete(filename):
+def delete_file(filename):
     try:
         os.remove(os.path.join(UPLOAD_FOLDER, filename))
-        for q in clients:
-            q.put("refresh")
-        return ('', 204)
+        broadcast("refresh")
+        return 'Deleted'
     except:
-        return ('File not found', 404)
+        return 'Delete failed', 500
+
+@app.route('/download_all')
+def download_all():
+    zip_path = os.path.join(UPLOAD_FOLDER, 'all_files.zip')
+    with zipfile.ZipFile(zip_path, 'w') as zf:
+        for file in os.listdir(UPLOAD_FOLDER):
+            if file != "all_files.zip":
+                zf.write(os.path.join(UPLOAD_FOLDER, file), arcname=file)
+    return send_from_directory(UPLOAD_FOLDER, 'all_files.zip', as_attachment=True)
 
 @app.route('/stream')
 def stream():
     def event_stream(q):
-        try:
-            while True:
-                yield f"data: {q.get()}
-
-"
-        except GeneratorExit:
-            pass
-
+        while True:
+            msg = q.get()
+            yield f"data: {msg}\n\n"
     q = queue.Queue()
     clients.append(q)
-    return app.response_class(event_stream(q), mimetype='text/event-stream')
+    return Response(event_stream(q), mimetype="text/event-stream")
 
-@app.route('/list_files')
-def list_files():
-    files = os.listdir(UPLOAD_FOLDER)
-    return jsonify(files)
-
-@app.route('/download_all')
-def download_all():
-    memory_file = io.BytesIO()
-    with zipfile.ZipFile(memory_file, 'w') as zf:
-        for filename in os.listdir(UPLOAD_FOLDER):
-            filepath = os.path.join(UPLOAD_FOLDER, filename)
-            zf.write(filepath, arcname=filename)
-    memory_file.seek(0)
-    return send_file(memory_file, download_name="all_files.zip", as_attachment=True)
+def broadcast(message):
+    for c in clients:
+        c.put(message)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host="0.0.0.0", port=5000)
