@@ -1,27 +1,36 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>📂 File Share</title>
   <link rel="stylesheet" href="/static/style.css">
+  <style>body { zoom: 0.95; }</style>
 </head>
 <body>
   <div class="container">
-    <h1>📤 Local File Transfer</h1>
+    <h1>📤 File Transfer</h1>
     <p id="devicename-info"></p>
+
     <form id="uploadForm">
       <input type="file" id="fileInput" name="file" multiple required>
-      <label for="fileInput" id="fileName">No file selected</label>
+      <label id="fileName">No file selected</label>
       <button type="submit">Upload</button>
     </form>
+
     <div class="progress" id="progressContainer" style="display:none;">
       <div id="progressBar"></div>
     </div>
+    <p id="speedDisplay"></p>
+
     <h2>📁 Files</h2>
-    <button onclick="window.location.href='/download_all'" class="dl-btn" style="margin-bottom:10px;width:100%">⬇️ Download All as ZIP</button>
     <ul id="fileList"></ul>
+
+    <button onclick="window.location.href='/download_all'" class="dl-btn">⬇️ Download All</button>
   </div>
+
+  <div id="popup" style="display:none;"></div>
+
   <script src="/static/main.js"></script>
 </body>
 </html>
