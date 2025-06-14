@@ -1,58 +1,60 @@
-/* ---------- upload with progress + speed ---------- */
+/* ---------- show chosen filename ---------- */
+const fileInput  = document.getElementById('fileInput');
+const fileNameEl = document.getElementById('fileName');
+fileInput.addEventListener('change', () => {
+  fileNameEl.textContent = fileInput.files[0]?.name || 'No file selected';
+});
+
+/* ---------- upload with progress & speed ---------- */
 document.getElementById('uploadForm').addEventListener('submit', e => {
   e.preventDefault();
-  const file = document.getElementById('fileInput').files[0];
+  const file = fileInput.files[0];
   if (!file) return;
 
   const bar   = document.getElementById('uploadBar');
   const speed = document.getElementById('uploadSpeed');
   bar.style.display = 'block';
   speed.textContent = '';
-
   let t0 = performance.now();
-  const xhr = new XMLHttpRequest();
 
+  const xhr = new XMLHttpRequest();
   xhr.upload.onprogress = ev => {
     if (ev.lengthComputable) {
       bar.value = (ev.loaded / ev.total) * 100;
-      const time = (performance.now() - t0) / 1000;          // seconds
-      const kbps = (ev.loaded / 1024 / time).toFixed(1);     // KB/s
+      const kbps = (ev.loaded / 1024 / ((performance.now() - t0) / 1000)).toFixed(1);
       speed.textContent = `${kbps} KB/s`;
     }
   };
-
-  xhr.onload = () => location.reload();                      // refresh list
+  xhr.onload = () => location.reload();
   xhr.open('POST', '/');
-  const formData = new FormData();
-  formData.append('file', file);
-  xhr.send(formData);
+  const fd = new FormData();
+  fd.append('file', file);
+  xhr.send(fd);
 });
 
-/* ---------- download with progress + speed ---------- */
-function downloadFile(ev, filename){
-  ev.preventDefault();
-  const url = `/files/${filename}`;
-  const idx = [...ev.target.closest('ul').children].indexOf(ev.target.closest('li')) + 1;
-  const bar   = document.getElementById(`bar-${idx}`);
-  const speed = document.getElementById(`speed-${filename}`);
+/* ---------- download with progress & speed ---------- */
+function downloadFile(filename){
+  const li      = [...document.querySelectorAll('#fileList li')]
+                  .find(el => el.querySelector('.file-name').textContent === filename);
+  const bar     = li.querySelector('progress');
+  const speedEl = li.querySelector('.speed');
 
   bar.style.display = 'block';
-  speed.textContent = '';
+  speedEl.textContent = '';
   let t0 = performance.now();
 
   const xhr = new XMLHttpRequest();
   xhr.responseType = 'blob';
-  xhr.onprogress = ev2 => {
-    if (ev2.lengthComputable) {
-      bar.value = (ev2.loaded / ev2.total) * 100;
-      const time = (performance.now() - t0) / 1000;
-      const kbps = (ev2.loaded / 1024 / time).toFixed(1);
-      speed.textContent = `${kbps} KB/s`;
+  xhr.onprogress = ev => {
+    if (ev.lengthComputable) {
+      bar.value = (ev.loaded / ev.total) * 100;
+      const kbps = (ev.loaded / 1024 / ((performance.now() - t0) / 1000)).toFixed(1);
+      speedEl.textContent = `${kbps} KB/s`;
     }
   };
   xhr.onload = () => {
     bar.style.display = 'none';
-    speed.textContent = '';
+    speedEl.textContent = '';
     const blob = xhr.response;
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -60,17 +62,19 @@ function downloadFile(ev, filename){
     a.click();
     URL.revokeObjectURL(a.href);
   };
-  xhr.open('GET', url);
+  xhr.open('GET', `/files/${filename}`);
   xhr.send();
 }
 
-/* ---------- delete file (AJAX) ---------- */
-function deleteFile(ev, filename){
-  ev.preventDefault();
-  if(!confirm(`Delete ${filename}?`)) return;
+/* ---------- delete ---------- */
+function deleteFile(filename){
+  if (!confirm(`Delete ${filename}?`)) return;
   fetch(`/delete/${filename}`, {method:'POST'})
-    .then(res => {
-      if(res.ok) location.reload();
-      else alert('Delete failed');
-    });
+    .then(r => r.ok ? location.reload() : alert('Delete failed'));
+}
+
+/* ---------- live auto‑refresh via Server‑Sent Events ---------- */
+if (window.EventSource){
+  const es = new EventSource('/events');
+  es.onmessage = e => (e.data === 'refresh') && location.reload();
 }
