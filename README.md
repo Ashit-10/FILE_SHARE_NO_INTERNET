@@ -36,3 +36,4 @@ This works fully **offline** using local Wi-Fi or hotspot.
 ```bash
 git clone https://github.com/your-username/FILE_SHARE_NO_INTERNET
 cd FILE_SHARE_NO_INTERNET
+python3 file.py
